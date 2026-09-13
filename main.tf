@@ -45,9 +45,10 @@ resource "kubernetes_secret_v1" "secrets" {
   }
   type = "Opaque"
   data = {
-    Jwt__Secret        = var.jwt_secret
-    Webhook__Secret    = var.webhook_secret
-    Postgres__Password = var.postgres_password
+    Jwt__Secret          = var.jwt_secret
+    Webhook__Secret      = var.webhook_secret
+    Postgres__Password   = var.postgres_password
+    NewRelic__LicenseKey = var.newrelic_license_key
   }
 }
 
@@ -101,6 +102,16 @@ resource "kubernetes_deployment_v1" "api" {
               secret_key_ref {
                 name = kubernetes_secret_v1.secrets.metadata[0].name
                 key  = "Postgres__Password"
+              }
+            }
+          }
+          # New Relic APM: license key (habilita o agent .NET embutido na imagem).
+          env {
+            name = "NEW_RELIC_LICENSE_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.secrets.metadata[0].name
+                key  = "NewRelic__LicenseKey"
               }
             }
           }

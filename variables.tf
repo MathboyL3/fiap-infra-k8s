@@ -74,3 +74,10 @@ variable "enable_ingress" {
   type        = bool
   default     = true
 }
+
+variable "newrelic_license_key" {
+  description = "New Relic INGEST license key (APM). Injetada como env NEW_RELIC_LICENSE_KEY."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
