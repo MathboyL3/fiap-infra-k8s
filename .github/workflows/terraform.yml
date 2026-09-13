@@ -1,0 +1,41 @@
+name: terraform
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  validate:
+    name: fmt • validate • plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform fmt (check)
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init (sem backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      # O apply roda contra um cluster LOCAL (Docker Desktop), que os runners
+      # hospedados no GitHub nao possuem. Um `plan` completo exige kubeconfig.
+      # Para deploy automatico em nuvem (EKS/GKE/AKS), configure credenciais
+      # como secrets e habilite o job `apply` abaixo (self-hosted ou cloud).
+      - name: Nota sobre apply
+        run: echo "::notice::Deploy aplicado localmente via 'terraform apply' (cluster Docker Desktop). Ver README."
