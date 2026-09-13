@@ -1,0 +1,5 @@
+# Copie para terraform.tfvars (gitignored) OU use TF_VAR_* no ambiente.
+# jwt_secret deve ser IGUAL ao da Lambda (fiap-auth) e da app (fiap-app).
+jwt_secret        = "fiap-fase3-super-secreto-hs256-key-0123456789"
+postgres_password = "<senha-do-postgres-railway>"
+# postgres_host/port/etc ja tem defaults (outputs do fiap-infra-db).
