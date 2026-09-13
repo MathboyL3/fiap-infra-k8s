@@ -82,6 +82,15 @@ kubectl port-forward -n oficina svc/fiap-app 8080:80   # http://localhost:8080
 `.github/workflows/terraform.yml`: em PR/push roda `fmt -check`, `init`, `validate`.
 O `apply` roda contra um cluster **local** (Docker Desktop), que os runners hospedados do GitHub não têm — por isso é manual/local. Para nuvem (EKS/GKE/AKS), configure credenciais como secrets e habilite um job de apply (self-hosted/cloud).
 
+
+## Observabilidade (New Relic)
+A license key do New Relic é provisionada como Secret e injetada como `NEW_RELIC_LICENSE_KEY` no Deployment (habilita o agent APM embutido na imagem):
+```bash
+export TF_VAR_newrelic_license_key="<ingest-license-key>"
+terraform apply
+```
+Para métricas de infra do cluster (CPU/mem dos pods) e logs, instale o `nri-bundle` (Helm) — ver `fiap-app/observability/README.md`.
+
 ## Documentação
 - [`docs/adr/0001-hpa-escalabilidade.md`](docs/adr/0001-hpa-escalabilidade.md)
 - [`docs/adr/0002-gateway-ingress-e-comunicacao.md`](docs/adr/0002-gateway-ingress-e-comunicacao.md)
