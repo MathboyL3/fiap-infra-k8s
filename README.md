@@ -2,6 +2,19 @@
 
 Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provisionada via **Terraform**. Um dos 4 repositórios do Tech Challenge — Fase 3 (SOAT/FIAP).
 
+## Parte do sistema (4 repositórios)
+
+| Repositório | Papel |
+|---|---|
+| [fiap-auth-lambda](https://github.com/MathboyL3/fiap-auth-lambda) | Autenticação por CPF → JWT (API Gateway + Lambda) |
+| [fiap-app](https://github.com/MathboyL3/fiap-app) | API principal da oficina (.NET / Kubernetes) |
+| [fiap-infra-k8s](https://github.com/MathboyL3/fiap-infra-k8s) | Infra do cluster (Terraform) |
+| [fiap-infra-db](https://github.com/MathboyL3/fiap-infra-db) | Banco de dados gerenciado (Terraform + Railway) |
+
+> Arquitetura, diagrama de componentes (cloud) e diagramas de sequência:
+> [fiap-app/docs/ARQUITETURA.md](https://github.com/MathboyL3/fiap-app/blob/main/docs/ARQUITETURA.md).
+> Guia de entrega: [fiap-app/docs/ENTREGA.md](https://github.com/MathboyL3/fiap-app/blob/main/docs/ENTREGA.md).
+
 ## Propósito
 Provisionar, de forma versionada (IaC), tudo que a aplicação (`fiap-app`) precisa para rodar no cluster:
 namespace, configuração, segredos, **Deployment** escalável, **Service**, **HPA** e **Ingress (NGINX)** como gateway de entrada. A conexão de dados aponta para o **banco gerenciado** (`fiap-infra-db`, Railway) e a autenticação usa o **mesmo JWT** emitido pela `fiap-auth-lambda`.
