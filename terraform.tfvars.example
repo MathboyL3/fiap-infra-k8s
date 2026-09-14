@@ -5,3 +5,8 @@ postgres_password = "<senha-do-postgres-railway>"
 # postgres_host/port/etc ja tem defaults (outputs do fiap-infra-db).
 # New Relic APM (opcional): habilita telemetria da app.
 # newrelic_license_key = "<sua-ingest-license-key>"
+
+# Kong API Gateway + Konga (GUI), tudo via Terraform. Um apply sobe o gateway pronto.
+# enable_kong                = true
+# kong_pg_password           = "kongpass"            # senha do Postgres dedicado ao Kong
+# kong_rate_limit_per_minute = 1200

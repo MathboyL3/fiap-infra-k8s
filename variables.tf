@@ -83,13 +83,20 @@ variable "newrelic_license_key" {
 }
 
 variable "enable_kong" {
-  description = "Cria o Ingress Kong + KongPlugin de rate-limiting (requer o Kong Ingress Controller instalado via Helm)."
+  description = "Sobe o Kong (DB-backed via Helm) + Postgres dedicado + Konga (GUI). Um unico apply deixa o gateway e a GUI prontos."
   type        = bool
   default     = false
 }
 
+variable "kong_pg_password" {
+  description = "Senha do Postgres dedicado ao Kong."
+  type        = string
+  sensitive   = true
+  default     = "kongpass"
+}
+
 variable "kong_rate_limit_per_minute" {
-  description = "Limite de requisicoes por minuto no Kong (rate-limiting)."
+  description = "Limite de requisicoes por minuto do plugin rate-limiting do Kong (aplicado a Service fiap-app)."
   type        = number
   default     = 1200
 }

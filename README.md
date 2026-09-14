@@ -56,28 +56,44 @@ flowchart TB
 | Service | `fiap-app` — NodePort `30080` |
 | HPA v2 | min 2 / max 6, CPU 60% + memória 75%, políticas de scale up/down |
 | Ingress | `fiap-app` (classe `nginx`) — gateway de entrada + `limit-rps` |
-| Ingress + KongPlugin | `fiap-app-kong` (classe `kong`) — gateway **Kong** + rate-limiting (opcional, `enable_kong=true`) |
+| **Kong (gateway)** | com `enable_kong=true`: Kong DB-backed (Helm) + Postgres dedicado + rota/rate-limiting + **Konga (GUI)** |
 
-## Gateway: NGINX ou Kong
+## Gateway: NGINX ou Kong (com Konga)
 
-O ponto de entrada pode ser o **Ingress NGINX** (padrão) ou o **Kong** (API Gateway completo).
-O Kong é criado quando `enable_kong = true` e requer o **Kong Ingress Controller** instalado:
+O ponto de entrada pode ser o **Ingress NGINX** (padrão) ou o **Kong** — um API Gateway completo,
+provisionado **inteiramente por Terraform** e pronto para demonstração.
+
+Com `enable_kong = true`, um único `terraform apply` sobe (namespace `kong`):
+
+- um **PostgreSQL dedicado** ao Kong (StatefulSet + Service + Secret);
+- o **Kong** em modo **DB-backed** (chart oficial `kong/kong` via provider `helm`), com Admin API
+  HTTP e migrations automáticas — o proxy é exposto via **NodePort `32080`**;
+- um **Job de configuração** que cria, pela Admin API, a **Service** `fiap-app`
+  (upstream = `fiap-app.oficina.svc.cluster.local`), a **Route** `/` e o plugin
+  **rate-limiting** (`kong_rate_limit_per_minute`, padrão 1200/min);
+- o **Konga** — a GUI open source do Kong (das aulas) — apontando para a Admin API
+  (`http://kong-kong-admin:8001`), exposto via **NodePort `31337`**.
 
 ```bash
-helm repo add kong https://charts.konghq.com && helm repo update
-helm install kong kong/ingress -n kong --create-namespace
+# habilita e sobe tudo (Kong + Postgres + config + Konga)
+terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>"
 ```
 
-O Terraform ([`kong.tf`](kong.tf)) então cria um `Ingress` classe `kong` roteando para o
-`Service fiap-app` e um `KongPlugin` de **rate-limiting** (`kong_rate_limit_per_minute`, padrão
-1200/min). Acesso pelo proxy:
+Acessos para a demonstração (via `port-forward` ou NodePort):
 
 ```bash
-kubectl port-forward -n kong svc/kong-gateway-proxy 18000:80
-curl http://localhost:18000/health/ready         # respostas trazem Via: kong e X-RateLimit-*
+# Proxy do gateway (roteia para a API)
+kubectl port-forward -n kong svc/kong-kong-proxy 18080:80
+curl -i http://localhost:18080/health/ready      # 200; resposta traz Via: kong e X-RateLimit-*
+
+# Konga (GUI do curso) — conecta sozinho na Admin API
+kubectl port-forward -n kong svc/konga 31337:1337   # abrir http://localhost:31337
+
+# Kong Manager (GUI oficial que já vem no chart)
+kubectl port-forward -n kong svc/kong-kong-manager 8002:8002
 ```
 
-Ambos os gateways encaminham o header `Authorization` ao backend; a validação do JWT é feita pela
+O gateway encaminha o header `Authorization` ao backend; a validação do JWT é feita pela
 aplicação. Ver [`docs/adr/0003-gateway-kong.md`](docs/adr/0003-gateway-kong.md).
 
 ## Proteção de rotas por JWT

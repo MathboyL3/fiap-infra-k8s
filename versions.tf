@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.31"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.15"
+    }
   }
 }
 
@@ -14,4 +18,12 @@ terraform {
 provider "kubernetes" {
   config_path    = var.kube_config_path
   config_context = var.kube_context
+}
+
+# Provider Helm usa o mesmo kubeconfig (para instalar o Kong via chart oficial).
+provider "helm" {
+  kubernetes {
+    config_path    = var.kube_config_path
+    config_context = var.kube_context
+  }
 }
