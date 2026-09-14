@@ -81,3 +81,15 @@ variable "newrelic_license_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "enable_kong" {
+  description = "Cria o Ingress Kong + KongPlugin de rate-limiting (requer o Kong Ingress Controller instalado via Helm)."
+  type        = bool
+  default     = false
+}
+
+variable "kong_rate_limit_per_minute" {
+  description = "Limite de requisicoes por minuto no Kong (rate-limiting)."
+  type        = number
+  default     = 1200
+}
