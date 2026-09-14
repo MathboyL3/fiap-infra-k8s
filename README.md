@@ -28,7 +28,7 @@ namespace, configuração, segredos, **Deployment** escalável, **Service**, **H
 
 ```mermaid
 flowchart TB
-  User([Cliente / API consumer]) -->|HTTP + Bearer JWT| ING[Ingress NGINX\ngateway + rate limit]
+  User([Cliente / API consumer]) -->|HTTP + Bearer JWT| ING[Gateway (NGINX ou Kong)\ngateway + rate limit]
   ING --> SVC[Service fiap-app\nNodePort 30080]
   SVC --> P1[Pod fiap-app]
   SVC --> P2[Pod fiap-app]
@@ -56,6 +56,29 @@ flowchart TB
 | Service | `fiap-app` — NodePort `30080` |
 | HPA v2 | min 2 / max 6, CPU 60% + memória 75%, políticas de scale up/down |
 | Ingress | `fiap-app` (classe `nginx`) — gateway de entrada + `limit-rps` |
+| Ingress + KongPlugin | `fiap-app-kong` (classe `kong`) — gateway **Kong** + rate-limiting (opcional, `enable_kong=true`) |
+
+## Gateway: NGINX ou Kong
+
+O ponto de entrada pode ser o **Ingress NGINX** (padrão) ou o **Kong** (API Gateway completo).
+O Kong é criado quando `enable_kong = true` e requer o **Kong Ingress Controller** instalado:
+
+```bash
+helm repo add kong https://charts.konghq.com && helm repo update
+helm install kong kong/ingress -n kong --create-namespace
+```
+
+O Terraform ([`kong.tf`](kong.tf)) então cria um `Ingress` classe `kong` roteando para o
+`Service fiap-app` e um `KongPlugin` de **rate-limiting** (`kong_rate_limit_per_minute`, padrão
+1200/min). Acesso pelo proxy:
+
+```bash
+kubectl port-forward -n kong svc/kong-gateway-proxy 18000:80
+curl http://localhost:18000/health/ready         # respostas trazem Via: kong e X-RateLimit-*
+```
+
+Ambos os gateways encaminham o header `Authorization` ao backend; a validação do JWT é feita pela
+aplicação. Ver [`docs/adr/0003-gateway-kong.md`](docs/adr/0003-gateway-kong.md).
 
 ## Proteção de rotas por JWT
 O **Ingress** é o ponto de entrada único e encaminha o header `Authorization: Bearer <jwt>` ao backend. A **aplicação** valida o token (HS256, `iss/aud=Oficina.Api`, mesmo secret da Lambda) e aplica autorização por rota/role — rotas sensíveis exigem token; o endpoint público de acompanhamento permanece aberto. Ver `docs/adr/0002`.
@@ -106,3 +129,4 @@ Para métricas de infra do cluster (CPU/mem dos pods) e logs, instale o `nri-bun
 ## Documentação
 - [`docs/adr/0001-hpa-escalabilidade.md`](docs/adr/0001-hpa-escalabilidade.md)
 - [`docs/adr/0002-gateway-ingress-e-comunicacao.md`](docs/adr/0002-gateway-ingress-e-comunicacao.md)
+- [`docs/adr/0003-gateway-kong.md`](docs/adr/0003-gateway-kong.md)
