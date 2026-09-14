@@ -13,7 +13,6 @@ Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provision
 
 > Arquitetura, diagrama de componentes (cloud) e diagramas de sequência:
 > [fiap-app/docs/ARQUITETURA.md](https://github.com/MathboyL3/fiap-app/blob/main/docs/ARQUITETURA.md).
-> Guia de entrega: [fiap-app/docs/ENTREGA.md](https://github.com/MathboyL3/fiap-app/blob/main/docs/ENTREGA.md).
 
 ## Propósito
 Provisionar, de forma versionada (IaC), tudo que a aplicação (`fiap-app`) precisa para rodar no cluster:
