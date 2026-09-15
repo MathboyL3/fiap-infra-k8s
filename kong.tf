@@ -183,7 +183,7 @@ resource "kubernetes_service_v1" "konga" {
 # criando a Service `fiap-app` (upstream = Service .NET no ns oficina), a Route
 # `fiap-app-route` (path /) e o plugin rate-limiting. Assim o `terraform apply`
 # entrega o gateway JA CONFIGURADO (sem passos manuais na GUI), e o Konga fica
-# livre para o usuario inspecionar/editar ao vivo na demonstracao.
+# livre para inspecao/edicao pela interface grafica durante a demonstracao.
 resource "kubernetes_job_v1" "kong_config" {
   count = var.enable_kong ? 1 : 0
   metadata {

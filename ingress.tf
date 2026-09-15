@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------
 # Ingress (NGINX) — ponto de entrada unico. As rotas sensiveis sao protegidas
 # por JWT: a aplicacao valida o Bearer token (mesmo issuer/audience/secret da
-# Lambda fiap-auth). O Ingress centraliza roteamento, TLS e rate limit.
+# serviço fiap-auth). O Ingress centraliza roteamento, TLS e rate limit.
 #
 # Requer ingress-nginx instalado no cluster:
 #   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml

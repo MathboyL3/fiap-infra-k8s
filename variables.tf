@@ -53,7 +53,7 @@ variable "postgres_username" {
 
 # --- Segredos (injetar via TF_VAR_* ou terraform.tfvars; nunca versionar) ---
 variable "jwt_secret" {
-  description = "Segredo JWT HS256 (>=32 chars). Mesmo da Lambda e da app."
+  description = "Segredo JWT HS256 (>=32 chars). Mesmo do servico de auth (fiap-auth) e da app."
   type        = string
   sensitive   = true
 }

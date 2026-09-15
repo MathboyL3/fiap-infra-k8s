@@ -24,7 +24,7 @@ namespace `kong`:
    **Service** `fiap-app` (upstream `fiap-app.oficina.svc.cluster.local:80`), a **Route** `/` e o
    plugin **rate-limiting** (`kong_rate_limit_per_minute`, padrão 1200/min).
 4. **Konga** (`pantsel/konga`) apontando para a Admin API — **NodePort `31337`** — permitindo
-   inspecionar/editar Serviços, Rotas e Consumers ao vivo, no estilo das aulas.
+   inspecionar/editar Serviços, Rotas e Consumers pela interface gráfica.
 
 O **Ingress NGINX permanece disponível** (`enable_ingress`), então os dois gateways coexistem e a
 mudança é reversível. A validação do **JWT continua na aplicação** (o gateway encaminha o header
