@@ -9,10 +9,10 @@ O enunciado exige um **API Gateway** protegendo rotas sensíveis com autenticaç
 
 ## Decisão
 - **Ingress NGINX** como **gateway de entrada** do cluster: roteamento único, `limit-rps` (rate limit de borda) e encaminhamento do header `Authorization`.
-- **Autenticação por JWT validada na aplicação** (HS256, `iss/aud=Oficina.Api`, **mesmo secret** da `fiap-auth-lambda`). Rotas sensíveis exigem Bearer token; o endpoint público de acompanhamento de OS permanece aberto.
+- **Autenticação por JWT validada na aplicação** (HS256, `iss/aud=Oficina.Api`, **mesmo secret** do serviço `fiap-auth`). Rotas sensíveis exigem Bearer token; o endpoint público de acompanhamento de OS permanece aberto.
 - **Comunicação síncrona HTTP/REST** entre gateway → Service → Pods; conexão a dados via **Npgsql com SSL** ao banco gerenciado (Railway).
 
-> Observação: há **dois gateways** por design. O **API Gateway serverless** (`fiap-auth-lambda`, LocalStack) emite o JWT (fluxo de login por CPF). O **Ingress NGINX** é o gateway do cluster para as APIs de negócio, que consomem esse JWT.
+> Observação: há **dois planos** por design. O **serviço serverless de autenticação** (`fiap-auth`, Bun no Railway) emite o JWT (fluxo de login por CPF). O **gateway do cluster** (Kong, com NGINX como alternativa) roteia as APIs de negócio, que consomem esse JWT.
 
 ## Alternativas consideradas
 - **Traefik:** ótimo, mas o ecossistema do curso e a documentação padrão usam ingress-nginx; menor curva.

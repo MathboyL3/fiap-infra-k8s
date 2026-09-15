@@ -6,7 +6,7 @@ Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provision
 
 | Repositório | Papel |
 |---|---|
-| [fiap-auth-lambda](https://github.com/MathboyL3/fiap-auth-lambda) | Autenticação por CPF → JWT (API Gateway + Lambda) |
+| [fiap-auth-lambda](https://github.com/MathboyL3/fiap-auth-lambda) | Autenticação por CPF → JWT (serverless Bun, Railway) |
 | [fiap-app](https://github.com/MathboyL3/fiap-app) | API principal da oficina (.NET / Kubernetes) |
 | [fiap-infra-k8s](https://github.com/MathboyL3/fiap-infra-k8s) | Infra do cluster (Terraform) |
 | [fiap-infra-db](https://github.com/MathboyL3/fiap-infra-db) | Banco de dados gerenciado (Terraform + Railway) |
@@ -16,13 +16,13 @@ Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provision
 
 ## Propósito
 Provisionar, de forma versionada (IaC), tudo que a aplicação (`fiap-app`) precisa para rodar no cluster:
-namespace, configuração, segredos, **Deployment** escalável, **Service**, **HPA** e **Ingress (NGINX)** como gateway de entrada. A conexão de dados aponta para o **banco gerenciado** (`fiap-infra-db`, Railway) e a autenticação usa o **mesmo JWT** emitido pela `fiap-auth-lambda`.
+namespace, configuração, segredos, **Deployment** escalável, **Service**, **HPA** e o **Kong** como API Gateway de entrada (com **Ingress NGINX** disponível como alternativa). A conexão de dados aponta para o **banco gerenciado** (`fiap-infra-db`, Railway) e a autenticação usa o **mesmo JWT** emitido pelo serviço `fiap-auth`.
 
 ## Tecnologias
 - **Terraform** (`>= 1.6`) + provider **hashicorp/kubernetes** `~> 2.31`
 - **Kubernetes** (Docker Desktop local; portável para EKS/GKE/AKS)
 - **HorizontalPodAutoscaler v2** (CPU + memória)
-- **Ingress NGINX** (gateway/roteamento + rate limit)
+- **Kong** (API Gateway: roteamento + rate-limiting) com **Konga** (GUI); **Ingress NGINX** como alternativa
 
 ## Arquitetura
 
@@ -97,7 +97,7 @@ O gateway encaminha o header `Authorization` ao backend; a validação do JWT é
 aplicação. Ver [`docs/adr/0003-gateway-kong.md`](docs/adr/0003-gateway-kong.md).
 
 ## Proteção de rotas por JWT
-O **Ingress** é o ponto de entrada único e encaminha o header `Authorization: Bearer <jwt>` ao backend. A **aplicação** valida o token (HS256, `iss/aud=Oficina.Api`, mesmo secret da Lambda) e aplica autorização por rota/role — rotas sensíveis exigem token; o endpoint público de acompanhamento permanece aberto. Ver `docs/adr/0002`.
+O **gateway** (Kong; ou o Ingress NGINX) é o ponto de entrada e encaminha o header `Authorization: Bearer <jwt>` ao backend. A **aplicação** valida o token (HS256, `iss/aud=Oficina.Api`, mesmo secret do serviço de autenticação) e aplica autorização por rota/role — rotas sensíveis exigem token; o endpoint público de acompanhamento permanece aberto. Ver `docs/adr/0002`.
 
 ## Pré-requisitos
 - **Terraform ≥ 1.6**, **kubectl**
@@ -112,7 +112,7 @@ O **Ingress** é o ponto de entrada único e encaminha o header `Authorization: 
 
 ## Execução / Deploy
 ```bash
-# Segredos (NÃO versionar). jwt_secret IGUAL ao da Lambda e da app.
+# Segredos (NÃO versionar). jwt_secret IGUAL ao do serviço de autenticação (fiap-auth) e da app.
 export TF_VAR_jwt_secret="<segredo-hs256-32+>"
 export TF_VAR_postgres_password="<senha-do-postgres-railway>"
 
