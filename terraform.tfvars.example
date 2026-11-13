@@ -10,3 +10,7 @@ postgres_password = "<senha-do-postgres-railway>"
 # enable_kong                = true
 # kong_pg_password           = "kongpass"            # senha do Postgres dedicado ao Kong
 # kong_rate_limit_per_minute = 1200
+
+# RabbitMQ (Fase 4): broker da Saga dos microsservicos.
+# rabbitmq_user     = "oficina"
+rabbitmq_password = "troque-esta-senha"

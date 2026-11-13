@@ -100,3 +100,16 @@ variable "kong_rate_limit_per_minute" {
   type        = number
   default     = 1200
 }
+
+# --- RabbitMQ (Fase 4): broker da Saga entre os microsservicos ---
+variable "rabbitmq_user" {
+  description = "Usuário do RabbitMQ (Fase 4)."
+  type        = string
+  default     = "oficina"
+}
+
+variable "rabbitmq_password" {
+  description = "Senha do RabbitMQ (Fase 4)."
+  type        = string
+  sensitive   = true
+}

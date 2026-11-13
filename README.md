@@ -57,6 +57,7 @@ flowchart TB
 | HPA v2 | min 2 / max 6, CPU 60% + memória 75%, políticas de scale up/down |
 | Ingress | `fiap-app` (classe `nginx`) — gateway de entrada + `limit-rps` |
 | **Kong (gateway)** | com `enable_kong=true`: Kong DB-backed (Helm) + Postgres dedicado + rota/rate-limiting + **Konga (GUI)** |
+| **RabbitMQ (Fase 4)** | `rabbitmq` — StatefulSet + PVC `1Gi` (imagem `rabbitmq:3.13-management`), Service NodePort `31672` (UI); Secret `rabbitmq-credentials` |
 
 ## Gateway: NGINX ou Kong (com Konga)
 
@@ -95,6 +96,35 @@ kubectl port-forward -n kong svc/kong-kong-manager 8002:8002
 
 O gateway encaminha o header `Authorization` ao backend; a validação do JWT é feita pela
 aplicação. Ver [`docs/adr/0003-gateway-kong.md`](docs/adr/0003-gateway-kong.md).
+
+## RabbitMQ (Fase 4)
+
+Broker de mensagens da **Saga** entre os três microsserviços (`os-service`, `billing-service`,
+`execucao-service`). Provisionado no namespace `oficina` junto com a API:
+
+| Recurso | Detalhe |
+|---|---|
+| StatefulSet | `rabbitmq` — 1 réplica, PVC `1Gi` em `/var/lib/rabbitmq`, readiness `rabbitmq-diagnostics -q ping` |
+| Service | `rabbitmq` — `5672` (AMQP, interno), `15672` (management, interno) e NodePort **`31672`** para a UI |
+| Secret | `rabbitmq-credentials` — chaves `RabbitMq__Username` e `RabbitMq__Password` |
+| Output | `rabbitmq_host` = `rabbitmq.oficina.svc.cluster.local` |
+
+A imagem é a oficial `rabbitmq:3.13-management` (traz a management UI). Não são instalados
+plugins extras: os timeouts da Saga usam **Quartz persistente** no `os-service`, não o
+delayed-message exchange.
+
+```bash
+# segredo do broker (não versionar) — usuário padrão: oficina
+export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"
+terraform apply
+
+# management UI (usuário/senha do Secret)
+kubectl port-forward -n oficina svc/rabbitmq 15672:15672   # http://localhost:15672
+# ou via NodePort: http://localhost:31672
+```
+
+Os serviços da Fase 4 consomem o broker com o host do output `rabbitmq_host` e as credenciais
+do Secret `rabbitmq-credentials` (injetadas como `RabbitMq__Username` / `RabbitMq__Password`).
 
 ## Proteção de rotas por JWT
 O **gateway** (Kong; ou o Ingress NGINX) é o ponto de entrada e encaminha o header `Authorization: Bearer <jwt>` ao backend. A **aplicação** valida o token (HS256, `iss/aud=Oficina.Api`, mesmo secret do serviço de autenticação) e aplica autorização por rota/role — rotas sensíveis exigem token; o endpoint público de acompanhamento permanece aberto. Ver `docs/adr/0002`.

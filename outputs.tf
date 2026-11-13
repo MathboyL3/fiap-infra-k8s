@@ -18,3 +18,8 @@ output "acesso_local" {
   description = "Acesso local via port-forward (confiavel no Docker Desktop)."
   value       = "kubectl port-forward -n ${var.namespace} svc/fiap-app 8080:80  ->  http://localhost:8080"
 }
+
+output "rabbitmq_host" {
+  description = "Host interno do RabbitMQ (Fase 4) — AMQP 5672, management 15672 (NodePort 31672)."
+  value       = "rabbitmq.oficina.svc.cluster.local"
+}
