@@ -57,7 +57,7 @@ flowchart TB
 | HPA v2 | min 2 / max 6, CPU 60% + memória 75%, políticas de scale up/down |
 | Ingress | `fiap-app` (classe `nginx`) — gateway de entrada + `limit-rps` |
 | **Kong (gateway)** | com `enable_kong=true`: Kong DB-backed (Helm) + Postgres dedicado + rota/rate-limiting + **Konga (GUI)** |
-| **RabbitMQ (Fase 4)** | `rabbitmq` — StatefulSet + PVC `1Gi` (imagem `rabbitmq:3.13-management`), Service NodePort `31672` (UI); Secret `rabbitmq-credentials` |
+| **RabbitMQ (Fase 4)** | `rabbitmq` — StatefulSet + PVC `1Gi` (imagem `rabbitmq:3.13-management`), Service interno `rabbitmq` + Service `rabbitmq-management` NodePort `31672` (UI); Secret `rabbitmq-credentials` |
 
 ## Gateway: NGINX ou Kong (com Konga)
 
@@ -104,10 +104,11 @@ Broker de mensagens da **Saga** entre os três microsserviços (`os-service`, `b
 
 | Recurso | Detalhe |
 |---|---|
-| StatefulSet | `rabbitmq` — 1 réplica, PVC `1Gi` em `/var/lib/rabbitmq`, readiness `rabbitmq-diagnostics -q ping` |
-| Service | `rabbitmq` — `5672` (AMQP, interno), `15672` (management, interno) e NodePort **`31672`** para a UI |
+| StatefulSet | `rabbitmq` — 1 réplica, PVC `1Gi` em `/var/lib/rabbitmq`, readiness e liveness `rabbitmq-diagnostics -q ping` |
+| Service | `rabbitmq` — ClusterIP, `5672` (AMQP) e `15672` (management), interno ao cluster |
+| Service | `rabbitmq-management` — NodePort **`31672`** → `15672` (UI); é o único exposto fora do cluster |
 | Secret | `rabbitmq-credentials` — chaves `RabbitMq__Username` e `RabbitMq__Password` |
-| Output | `rabbitmq_host` = `rabbitmq.oficina.svc.cluster.local` |
+| Output | `rabbitmq_host` = `rabbitmq.<namespace>.svc.cluster.local` |
 
 A imagem é a oficial `rabbitmq:3.13-management` (traz a management UI). Não são instalados
 plugins extras: os timeouts da Saga usam **Quartz persistente** no `os-service`, não o
@@ -119,9 +120,20 @@ export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"
 terraform apply
 
 # management UI (usuário/senha do Secret)
-kubectl port-forward -n oficina svc/rabbitmq 15672:15672   # http://localhost:15672
+kubectl port-forward -n oficina svc/rabbitmq-management 15672:15672   # http://localhost:15672
 # ou via NodePort: http://localhost:31672
 ```
+
+> **Atenção — senha:** `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` só são aplicados no
+> **primeiro provisionamento**, quando o data dir de `/var/lib/rabbitmq` está vazio. Mudar
+> `rabbitmq_password` (TF_VAR/tfvars) e reaplicar **não** troca a senha de um broker já inicializado.
+> Para rotacionar num broker existente:
+>
+> ```bash
+> kubectl exec -n oficina rabbitmq-0 -- rabbitmqctl change_password oficina <nova-senha>
+> ```
+>
+> e depois atualizar o `TF_VAR_rabbitmq_password` (ou o Secret) para manter o Terraform em sincronia.
 
 Os serviços da Fase 4 consomem o broker com o host do output `rabbitmq_host` e as credenciais
 do Secret `rabbitmq-credentials` (injetadas como `RabbitMq__Username` / `RabbitMq__Password`).

@@ -21,5 +21,5 @@ output "acesso_local" {
 
 output "rabbitmq_host" {
   description = "Host interno do RabbitMQ (Fase 4) — AMQP 5672, management 15672 (NodePort 31672)."
-  value       = "rabbitmq.oficina.svc.cluster.local"
+  value       = "rabbitmq.${var.namespace}.svc.cluster.local"
 }

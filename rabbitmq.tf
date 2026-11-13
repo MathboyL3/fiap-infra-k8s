@@ -62,6 +62,13 @@ resource "kubernetes_stateful_set_v1" "rabbitmq" {
             exec { command = ["rabbitmq-diagnostics", "-q", "ping"] }
             initial_delay_seconds = 20
             period_seconds        = 15
+            timeout_seconds       = 10
+          }
+          liveness_probe {
+            exec { command = ["rabbitmq-diagnostics", "-q", "ping"] }
+            initial_delay_seconds = 60
+            period_seconds        = 20
+            timeout_seconds       = 10
           }
           resources {
             requests = { cpu = "100m", memory = "256Mi" }
@@ -91,13 +98,31 @@ resource "kubernetes_service_v1" "rabbitmq" {
     labels    = local.common_labels
   }
   spec {
-    type     = "NodePort"
+    type     = "ClusterIP"
     selector = { "app.kubernetes.io/name" = "rabbitmq" }
     port {
       name        = "amqp"
       port        = 5672
       target_port = 5672
     }
+    port {
+      name        = "management"
+      port        = 15672
+      target_port = 15672
+    }
+  }
+}
+
+# A management UI e exposta a parte: o broker fica interno ao cluster, so a UI sai por NodePort.
+resource "kubernetes_service_v1" "rabbitmq_management" {
+  metadata {
+    name      = "rabbitmq-management"
+    namespace = kubernetes_namespace_v1.ns.metadata[0].name
+    labels    = local.common_labels
+  }
+  spec {
+    type     = "NodePort"
+    selector = { "app.kubernetes.io/name" = "rabbitmq" }
     port {
       name        = "management"
       port        = 15672

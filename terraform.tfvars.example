@@ -13,4 +13,4 @@ postgres_password = "<senha-do-postgres-railway>"
 
 # RabbitMQ (Fase 4): broker da Saga dos microsservicos.
 # rabbitmq_user     = "oficina"
-rabbitmq_password = "troque-esta-senha"
+rabbitmq_password = "<senha-forte-do-rabbitmq>"
