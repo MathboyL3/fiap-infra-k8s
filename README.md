@@ -1,6 +1,6 @@
 # fiap-infra-k8s
 
-Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provisionada via **Terraform**. Um dos 4 repositórios do Tech Challenge — Fase 3 (SOAT/FIAP).
+Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provisionada via **Terraform**. Um dos 4 repositórios do Tech Challenge — Fases 3 e 4 (SOAT/FIAP).
 
 ## Parte do sistema (4 repositórios)
 
@@ -34,7 +34,7 @@ flowchart LR
   OS & BIL & EXE <--> MQ{{RabbitMQ\nUI NodePort 31672}}
 ```
 
-Ordem de provisionamento: `terraform apply` desta infra (namespace, RabbitMQ, Kong) → em cada serviço, `./k8s/bootstrap-secrets.ps1` e `kubectl apply -k k8s/` (ou o pipeline de deploy).
+Ordem de provisionamento: `terraform apply` desta infra (com `TF_VAR_rabbitmq_password` definida, ver `terraform.tfvars.example`) (namespace, RabbitMQ, Kong) → em cada serviço, `./k8s/bootstrap-secrets.ps1` e `kubectl apply -k k8s/` (ou o pipeline de deploy).
 
 ## Propósito
 Provisionar, de forma versionada (IaC), tudo que a aplicação (`fiap-app`) precisa para rodar no cluster:
@@ -113,7 +113,8 @@ Rotas públicas no proxy (NodePort `32080`) — Fase 4 (o Kong prioriza o path m
 
 ```bash
 # habilita e sobe tudo (Kong + Postgres + config + Konga)
-terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>"
+# rabbitmq_password é obrigatória (sem default): -var ou TF_VAR_rabbitmq_password (ver terraform.tfvars.example)
+terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>" -var="rabbitmq_password=<senha-do-rabbitmq>"
 ```
 
 Acessos para a demonstração (via `port-forward` ou NodePort):
@@ -151,7 +152,7 @@ plugins extras: os timeouts da Saga usam **Quartz persistente** no `os-service`,
 delayed-message exchange.
 
 ```bash
-# segredo do broker (não versionar) — usuário padrão: oficina
+# segredo do broker (não versionar; ver terraform.tfvars.example) — usuário padrão: oficina
 export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"
 terraform apply
 
@@ -193,6 +194,7 @@ O **gateway** (Kong; ou o Ingress NGINX) é o ponto de entrada e encaminha o hea
 # Segredos (NÃO versionar). jwt_secret IGUAL ao do serviço de autenticação (fiap-auth) e da app.
 export TF_VAR_jwt_secret="<segredo-hs256-32+>"
 export TF_VAR_postgres_password="<senha-do-postgres-railway>"
+export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"   # obrigatória (Fase 4); ver terraform.tfvars.example
 
 terraform init
 terraform fmt -check -recursive
@@ -216,6 +218,7 @@ O `apply` roda contra um cluster **local** (Docker Desktop), que os runners hosp
 A license key do New Relic é provisionada como Secret e injetada como `NEW_RELIC_LICENSE_KEY` no Deployment (habilita o agent APM embutido na imagem):
 ```bash
 export TF_VAR_newrelic_license_key="<ingest-license-key>"
+export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"   # obrigatória; ver terraform.tfvars.example
 terraform apply
 ```
 Para métricas de infra do cluster (CPU/mem dos pods) e logs, instale o `nri-bundle` (Helm) — ver `fiap-app/observability/README.md`.
