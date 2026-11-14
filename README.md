@@ -75,6 +75,16 @@ Com `enable_kong = true`, um único `terraform apply` sobe (namespace `kong`):
 - o **Konga** — a GUI open source do Kong (das aulas) — apontando para a Admin API
   (`http://kong-kong-admin:8001`), exposto via **NodePort `31337`**.
 
+Rotas públicas no proxy (NodePort `32080`) — Fase 4 (o Kong prioriza o path mais específico):
+
+| Rota pública | Upstream (ns `oficina`) | Rate limit |
+|---|---|---|
+| `/os/api/...` | `oficina-os-service` (strip `/os`) | sim |
+| `/execucao/api/...` | `oficina-execucao-service` (strip `/execucao`) | sim |
+| `/billing/api/...` | `oficina-billing-service` (strip `/billing`) | sim |
+| `/billing/webhooks/mercadopago` | `oficina-billing-service` → `/webhooks/mercadopago` | não |
+| `/` | `fiap-app` (legado, sem strip) | sim |
+
 ```bash
 # habilita e sobe tudo (Kong + Postgres + config + Konga)
 terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>"
