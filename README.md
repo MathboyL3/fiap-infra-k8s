@@ -85,6 +85,10 @@ Rotas públicas no proxy (NodePort `32080`) — Fase 4 (o Kong prioriza o path m
 | `/billing/webhooks/mercadopago` | `oficina-billing-service` → `/webhooks/mercadopago` | não |
 | `/` | `fiap-app` (legado, sem strip) | sim |
 
+> **Limitação (paths):** os paths são prefixos simples (/os, /billing, ...), sem fronteira de segmento — /osx/... também casaria com /os. Paths regex (~/os(/|$)) dariam a fronteira, mas com strip_path o trecho casado inclui a barra final (o path enviado ao upstream não é garantido como /api/...) e não foi possível validar isso contra um Kong real; por isso mantivemos prefixo simples.
+>
+> **Webhook do Mercado Pago:** MercadoPago__PublicBaseUrl apontando para localhost só serve ao modo Fake. Com o Mercado Pago real é preciso um endereço público (túnel, ex. ngrok/cloudflared) apontando para o proxy do Kong (32080); sem alterar o configmap.
+
 ```bash
 # habilita e sobe tudo (Kong + Postgres + config + Konga)
 terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>"
