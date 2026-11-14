@@ -14,6 +14,28 @@ Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provision
 > Arquitetura, diagrama de componentes (cloud) e diagramas de sequência:
 > [fiap-app/docs/ARQUITETURA.md](https://github.com/MathboyL3/fiap-app/blob/main/docs/ARQUITETURA.md).
 
+## Fase 4 — microsserviços
+
+A partir da Fase 4 o cluster hospeda 3 microsserviços (cada um com repositório, `k8s/` e pipeline próprios) coordenados por RabbitMQ. Esta infra provê o **namespace `oficina`**, o **RabbitMQ** e o **Kong** com as rotas públicas; os manifestos de cada serviço ficam no repositório dele.
+
+| Repositório | Papel |
+|---|---|
+| [oficina-os-service](https://github.com/MathboyL3/oficina-os-service) | Clientes, veículos, OS e orquestrador da Saga (arquitetura: `docs/ARQUITETURA-FASE4.md`) |
+| [oficina-billing-service](https://github.com/MathboyL3/oficina-billing-service) | Orçamento e pagamento (Mercado Pago, MongoDB) |
+| [oficina-execucao-service](https://github.com/MathboyL3/oficina-execucao-service) | Catálogo, estoque e fila de execução |
+
+```mermaid
+flowchart LR
+  Cli([Cliente]) --> Kong[[Kong NodePort 32080]]
+  MP[(Mercado Pago)] -- webhook --> Kong
+  Kong -- /os --> OS[os-service]
+  Kong -- /billing --> BIL[billing-service]
+  Kong -- /execucao --> EXE[execucao-service]
+  OS & BIL & EXE <--> MQ{{RabbitMQ\nUI NodePort 31672}}
+```
+
+Ordem de provisionamento: `terraform apply` desta infra (namespace, RabbitMQ, Kong) → em cada serviço, `./k8s/bootstrap-secrets.ps1` e `kubectl apply -k k8s/` (ou o pipeline de deploy).
+
 ## Propósito
 Provisionar, de forma versionada (IaC), tudo que a aplicação (`fiap-app`) precisa para rodar no cluster:
 namespace, configuração, segredos, **Deployment** escalável, **Service**, **HPA** e o **Kong** como API Gateway de entrada (com **Ingress NGINX** disponível como alternativa). A conexão de dados aponta para o **banco gerenciado** (`fiap-infra-db`, Railway) e a autenticação usa o **mesmo JWT** emitido pelo serviço `fiap-auth`.
