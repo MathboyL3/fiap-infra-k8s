@@ -1,6 +1,6 @@
 # fiap-infra-k8s
 
-Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provisionada via **Terraform**. Um dos 4 repositórios do Tech Challenge — Fase 3 (SOAT/FIAP).
+Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provisionada via **Terraform**. Um dos 4 repositórios do Tech Challenge — Fases 3 e 4 (SOAT/FIAP).
 
 ## Parte do sistema (4 repositórios)
 
@@ -13,6 +13,28 @@ Infraestrutura **Kubernetes** escalável (com **HPA**) da aplicação, provision
 
 > Arquitetura, diagrama de componentes (cloud) e diagramas de sequência:
 > [fiap-app/docs/ARQUITETURA.md](https://github.com/MathboyL3/fiap-app/blob/main/docs/ARQUITETURA.md).
+
+## Fase 4 — microsserviços
+
+A partir da Fase 4 o cluster hospeda 3 microsserviços (cada um com repositório, `k8s/` e pipeline próprios) coordenados por RabbitMQ. Esta infra provê o **namespace `oficina`**, o **RabbitMQ** e o **Kong** com as rotas públicas; os manifestos de cada serviço ficam no repositório dele.
+
+| Repositório | Papel |
+|---|---|
+| [oficina-os-service](https://github.com/MathboyL3/oficina-os-service) | Clientes, veículos, OS e orquestrador da Saga (arquitetura: `docs/ARQUITETURA-FASE4.md`) |
+| [oficina-billing-service](https://github.com/MathboyL3/oficina-billing-service) | Orçamento e pagamento (Mercado Pago, MongoDB) |
+| [oficina-execucao-service](https://github.com/MathboyL3/oficina-execucao-service) | Catálogo, estoque e fila de execução |
+
+```mermaid
+flowchart LR
+  Cli([Cliente]) --> Kong[[Kong NodePort 32080]]
+  MP[(Mercado Pago)] -- webhook --> Kong
+  Kong -- /os --> OS[os-service]
+  Kong -- /billing --> BIL[billing-service]
+  Kong -- /execucao --> EXE[execucao-service]
+  OS & BIL & EXE <--> MQ{{RabbitMQ\nUI NodePort 31672}}
+```
+
+Ordem de provisionamento: `terraform apply` desta infra (com `TF_VAR_rabbitmq_password` definida, ver `terraform.tfvars.example`) (namespace, RabbitMQ, Kong) → em cada serviço, `./k8s/bootstrap-secrets.ps1` e `kubectl apply -k k8s/` (ou o pipeline de deploy).
 
 ## Propósito
 Provisionar, de forma versionada (IaC), tudo que a aplicação (`fiap-app`) precisa para rodar no cluster:
@@ -57,6 +79,7 @@ flowchart TB
 | HPA v2 | min 2 / max 6, CPU 60% + memória 75%, políticas de scale up/down |
 | Ingress | `fiap-app` (classe `nginx`) — gateway de entrada + `limit-rps` |
 | **Kong (gateway)** | com `enable_kong=true`: Kong DB-backed (Helm) + Postgres dedicado + rota/rate-limiting + **Konga (GUI)** |
+| **RabbitMQ (Fase 4)** | `rabbitmq` — StatefulSet + PVC `1Gi` (imagem `rabbitmq:3.13-management`), Service interno `rabbitmq` + Service `rabbitmq-management` NodePort `31672` (UI); Secret `rabbitmq-credentials` |
 
 ## Gateway: NGINX ou Kong (com Konga)
 
@@ -74,9 +97,24 @@ Com `enable_kong = true`, um único `terraform apply` sobe (namespace `kong`):
 - o **Konga** — a GUI open source do Kong (das aulas) — apontando para a Admin API
   (`http://kong-kong-admin:8001`), exposto via **NodePort `31337`**.
 
+Rotas públicas no proxy (NodePort `32080`) — Fase 4 (o Kong prioriza o path mais específico):
+
+| Rota pública | Upstream (ns `oficina`) | Rate limit |
+|---|---|---|
+| `/os/api/...` | `oficina-os-service` (strip `/os`) | sim |
+| `/execucao/api/...` | `oficina-execucao-service` (strip `/execucao`) | sim |
+| `/billing/api/...` | `oficina-billing-service` (strip `/billing`) | sim |
+| `/billing/webhooks/mercadopago` | `oficina-billing-service` → `/webhooks/mercadopago` | não |
+| `/` | `fiap-app` (legado, sem strip) | sim |
+
+> **Limitação (paths):** os paths são prefixos simples (/os, /billing, ...), sem fronteira de segmento — /osx/... também casaria com /os. Paths regex (~/os(/|$)) dariam a fronteira, mas com strip_path o trecho casado inclui a barra final (o path enviado ao upstream não é garantido como /api/...) e não foi possível validar isso contra um Kong real; por isso mantivemos prefixo simples.
+>
+> **Webhook do Mercado Pago:** MercadoPago__PublicBaseUrl apontando para localhost só serve ao modo Fake. Com o Mercado Pago real é preciso um endereço público (túnel, ex. ngrok/cloudflared) apontando para o proxy do Kong (32080); sem alterar o configmap.
+
 ```bash
 # habilita e sobe tudo (Kong + Postgres + config + Konga)
-terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>"
+# rabbitmq_password é obrigatória (sem default): -var ou TF_VAR_rabbitmq_password (ver terraform.tfvars.example)
+terraform apply -var="enable_kong=true"   -var="jwt_secret=<segredo>" -var="postgres_password=<senha-do-postgres-railway>" -var="rabbitmq_password=<senha-do-rabbitmq>"
 ```
 
 Acessos para a demonstração (via `port-forward` ou NodePort):
@@ -95,6 +133,47 @@ kubectl port-forward -n kong svc/kong-kong-manager 8002:8002
 
 O gateway encaminha o header `Authorization` ao backend; a validação do JWT é feita pela
 aplicação. Ver [`docs/adr/0003-gateway-kong.md`](docs/adr/0003-gateway-kong.md).
+
+## RabbitMQ (Fase 4)
+
+Broker de mensagens da **Saga** entre os três microsserviços (`os-service`, `billing-service`,
+`execucao-service`). Provisionado no namespace `oficina` junto com a API:
+
+| Recurso | Detalhe |
+|---|---|
+| StatefulSet | `rabbitmq` — 1 réplica, PVC `1Gi` em `/var/lib/rabbitmq`, readiness e liveness `rabbitmq-diagnostics -q ping` |
+| Service | `rabbitmq` — ClusterIP, `5672` (AMQP) e `15672` (management), interno ao cluster |
+| Service | `rabbitmq-management` — NodePort **`31672`** → `15672` (UI); é o único exposto fora do cluster |
+| Secret | `rabbitmq-credentials` — chaves `RabbitMq__Username` e `RabbitMq__Password` |
+| Output | `rabbitmq_host` = `rabbitmq.<namespace>.svc.cluster.local` |
+
+A imagem é a oficial `rabbitmq:3.13-management` (traz a management UI). Não são instalados
+plugins extras: os timeouts da Saga usam **Quartz persistente** no `os-service`, não o
+delayed-message exchange.
+
+```bash
+# segredo do broker (não versionar; ver terraform.tfvars.example) — usuário padrão: oficina
+export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"
+terraform apply
+
+# management UI (usuário/senha do Secret)
+kubectl port-forward -n oficina svc/rabbitmq-management 15672:15672   # http://localhost:15672
+# ou via NodePort: http://localhost:31672
+```
+
+> **Atenção — senha:** `RABBITMQ_DEFAULT_USER`/`RABBITMQ_DEFAULT_PASS` só são aplicados no
+> **primeiro provisionamento**, quando o data dir de `/var/lib/rabbitmq` está vazio. Mudar
+> `rabbitmq_password` (TF_VAR/tfvars) e reaplicar **não** troca a senha de um broker já inicializado.
+> Para rotacionar num broker existente:
+>
+> ```bash
+> kubectl exec -n oficina rabbitmq-0 -- rabbitmqctl change_password oficina <nova-senha>
+> ```
+>
+> e depois atualizar o `TF_VAR_rabbitmq_password` (ou o Secret) para manter o Terraform em sincronia.
+
+Os serviços da Fase 4 consomem o broker com o host do output `rabbitmq_host` e as credenciais
+do Secret `rabbitmq-credentials` (injetadas como `RabbitMq__Username` / `RabbitMq__Password`).
 
 ## Proteção de rotas por JWT
 O **gateway** (Kong; ou o Ingress NGINX) é o ponto de entrada e encaminha o header `Authorization: Bearer <jwt>` ao backend. A **aplicação** valida o token (HS256, `iss/aud=Oficina.Api`, mesmo secret do serviço de autenticação) e aplica autorização por rota/role — rotas sensíveis exigem token; o endpoint público de acompanhamento permanece aberto. Ver `docs/adr/0002`.
@@ -115,6 +194,7 @@ O **gateway** (Kong; ou o Ingress NGINX) é o ponto de entrada e encaminha o hea
 # Segredos (NÃO versionar). jwt_secret IGUAL ao do serviço de autenticação (fiap-auth) e da app.
 export TF_VAR_jwt_secret="<segredo-hs256-32+>"
 export TF_VAR_postgres_password="<senha-do-postgres-railway>"
+export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"   # obrigatória (Fase 4); ver terraform.tfvars.example
 
 terraform init
 terraform fmt -check -recursive
@@ -138,6 +218,7 @@ O `apply` roda contra um cluster **local** (Docker Desktop), que os runners hosp
 A license key do New Relic é provisionada como Secret e injetada como `NEW_RELIC_LICENSE_KEY` no Deployment (habilita o agent APM embutido na imagem):
 ```bash
 export TF_VAR_newrelic_license_key="<ingest-license-key>"
+export TF_VAR_rabbitmq_password="<senha-do-rabbitmq>"   # obrigatória; ver terraform.tfvars.example
 terraform apply
 ```
 Para métricas de infra do cluster (CPU/mem dos pods) e logs, instale o `nri-bundle` (Helm) — ver `fiap-app/observability/README.md`.

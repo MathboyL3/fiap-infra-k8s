@@ -228,6 +228,54 @@ resource "kubernetes_job_v1" "kong_config" {
               --data "config.minute=$RL" \
               --data "config.policy=local"
             echo
+            # --- Fase 4: microsservicos ---------------------------------------
+            # `fiap-app-route` (path /, strip false) continua existindo como
+            # fallback legado; as rotas abaixo sao mais especificas (/os,
+            # /execucao, /billing, /billing/webhooks) e por isso vencem a de "/".
+            # Entre /billing e /billing/webhooks o Kong prioriza o path mais longo.
+            for SVC in os execucao billing; do
+              echo "criando Service $SVC-service..."
+              curl -sf -X PUT "$ADMIN/services/$SVC-service" \
+                --data "url=http://oficina-$SVC-service.oficina.svc.cluster.local"
+              echo
+              echo "criando Route $SVC-route..."
+              curl -sf -X PUT "$ADMIN/services/$SVC-service/routes/$SVC-route" \
+                --data "paths[]=/$SVC" --data "strip_path=true"
+              echo
+            done
+            # Webhook do Mercado Pago: Service dedicada com path /webhooks, para que
+            # /billing/webhooks/mercadopago chegue como /webhooks/mercadopago.
+            # Sem rate-limiting (o provedor pode reenviar notificacoes em rajada).
+            echo "criando Service billing-webhook..."
+            curl -sf -X PUT "$ADMIN/services/billing-webhook" \
+              --data "url=http://oficina-billing-service.oficina.svc.cluster.local/webhooks"
+            echo
+            echo "criando Route billing-webhook-route..."
+            curl -sf -X PUT "$ADMIN/services/billing-webhook/routes/billing-webhook-route" \
+              --data "paths[]=/billing/webhooks" --data "strip_path=true"
+            echo
+            echo "criando plugins rate-limiting dos microsservicos ($RL/min)..."
+            curl -sf -X PUT "$ADMIN/plugins/a1b2c3d4-0000-4000-8000-000000000002" \
+              --data "name=rate-limiting" \
+              --data "instance_name=rate-limiting-os" \
+              --data "service.name=os-service" \
+              --data "config.minute=$RL" \
+              --data "config.policy=local"
+            echo
+            curl -sf -X PUT "$ADMIN/plugins/a1b2c3d4-0000-4000-8000-000000000003" \
+              --data "name=rate-limiting" \
+              --data "instance_name=rate-limiting-execucao" \
+              --data "service.name=execucao-service" \
+              --data "config.minute=$RL" \
+              --data "config.policy=local"
+            echo
+            curl -sf -X PUT "$ADMIN/plugins/a1b2c3d4-0000-4000-8000-000000000004" \
+              --data "name=rate-limiting" \
+              --data "instance_name=rate-limiting-billing" \
+              --data "service.name=billing-service" \
+              --data "config.minute=$RL" \
+              --data "config.policy=local"
+            echo
             echo "config do Kong aplicada."
           SH
           ]
